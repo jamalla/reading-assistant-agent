@@ -85,7 +85,12 @@ PAGE = """<!doctype html>
   function add(cls, text, meta) {
     const d = document.createElement("div");
     d.className = "msg " + cls;
-    d.textContent = text;
+    // Show **bold** from the model as real bold text (safely: text nodes, no innerHTML).
+    text.split("**").forEach((part, i) => {
+      const node = i % 2 ? document.createElement("strong") : document.createTextNode("");
+      node.textContent = part;
+      d.appendChild(node);
+    });
     if (meta) { const m = document.createElement("div"); m.className = "meta"; m.textContent = meta; d.appendChild(m); }
     log.appendChild(d);
     d.scrollIntoView({ behavior: "smooth" });
