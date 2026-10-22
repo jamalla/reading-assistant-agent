@@ -1,3 +1,7 @@
+# Raw Kaggle download: never commit it (only the 200-book sample in data/)
+*.csv
+*.zip
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
