@@ -1,2 +1,6 @@
 # Lesson 1 - recommender
 scikit-learn==1.5.2
+
+# Lesson 2 - agent
+langchain==1.4.7
+langchain-openai==1.7.2
