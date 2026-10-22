@@ -64,23 +64,50 @@ def text_of(message) -> str:
     return "".join(block.get("text", "") for block in content if isinstance(block, dict))
 
 
-def ask(agent, question: str) -> dict:
-    """Run one question through the agent; return the answer and the tool calls it made."""
-    result = agent.invoke({"messages": [{"role": "user", "content": question}]})
-    tool_calls = [
-        call["args"] for m in result["messages"] for call in (getattr(m, "tool_calls", None) or [])
-    ]
-    return {"answer": text_of(result["messages"][-1]), "tool_calls": tool_calls}
+def langfuse_callbacks() -> list:
+    """Trace to Langfuse when its keys are set; otherwise run without tracing."""
+    if not os.environ.get("LANGFUSE_PUBLIC_KEY"):
+        return []
+    from langfuse.langchain import CallbackHandler
+
+    return [CallbackHandler()]
+
+
+def ask(agent, question: str, callbacks: list | None = None) -> dict:
+    """Run one question through the agent.
+
+    Returns the answer, the tool calls it made, and the titles the tool actually
+    retrieved (the evals need these to judge the answer fairly).
+    """
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": question}]},
+        config={"callbacks": callbacks or []},
+    )
+    tool_calls, retrieved = [], []
+    for m in result["messages"]:
+        tool_calls += [call["args"] for call in (getattr(m, "tool_calls", None) or [])]
+        if getattr(m, "type", "") == "tool":
+            try:
+                retrieved += [b["title"] for b in json.loads(text_of(m))]
+            except (ValueError, TypeError, KeyError):
+                pass
+    return {
+        "answer": text_of(result["messages"][-1]),
+        "tool_calls": tool_calls,
+        "retrieved": list(dict.fromkeys(retrieved)),  # unique, keep order
+    }
 
 
 if __name__ == "__main__":
     agent = build_agent(os.environ.get("PROMPT_VERSION", "v1"))
+    callbacks = langfuse_callbacks()
+    print("Langfuse tracing:", "ON" if callbacks else "off (no LANGFUSE_PUBLIC_KEY)")
     print("مساعد القراءة — اكتب سؤالك (أو 'خروج' للإنهاء)\n")
     while True:
         question = input("أنت: ").strip()
         if question in {"", "خروج", "exit", "quit"}:
             break
-        reply = ask(agent, question)
+        reply = ask(agent, question, callbacks=callbacks)
         for call in reply["tool_calls"]:
             print(f"  🔎 search_books({call})")
         print(f"\nالمساعد: {reply['answer']}\n")
